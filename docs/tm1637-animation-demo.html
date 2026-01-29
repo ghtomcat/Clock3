@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TM1637 Display Patterns Demo</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #1a1a1a;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        
+        .display-container {
+            background: #000;
+            padding: 30px 40px;
+            border-radius: 10px;
+            box-shadow: 0 0 30px rgba(255, 0, 0, 0.3);
+        }
+        
+        .display {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .digit {
+            position: relative;
+            width: 60px;
+            height: 90px;
+        }
+        
+        .segment {
+            position: absolute;
+            background: #2a0000;
+            transition: background 0.1s;
+        }
+        
+        .segment.on {
+            background: #ff0000;
+            box-shadow: 0 0 10px #ff0000;
+        }
+        
+        /* Horizontal segments */
+        .segment-a, .segment-d, .segment-g {
+            width: 40px;
+            height: 8px;
+            left: 10px;
+        }
+        
+        .segment-a { top: 0; }
+        .segment-g { top: 41px; }
+        .segment-d { top: 82px; }
+        
+        /* Vertical segments */
+        .segment-b, .segment-c, .segment-e, .segment-f {
+            width: 8px;
+            height: 35px;
+        }
+        
+        .segment-b { top: 8px; right: 2px; }
+        .segment-c { top: 49px; right: 2px; }
+        .segment-e { top: 49px; left: 2px; }
+        .segment-f { top: 8px; left: 2px; }
+        
+        .colon {
+            width: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        .colon-dot {
+            width: 8px;
+            height: 8px;
+            background: #2a0000;
+            border-radius: 50%;
+        }
+        
+        .colon-dot.on {
+            background: #ff0000;
+            box-shadow: 0 0 10px #ff0000;
+        }
+        
+        .info {
+            color: #fff;
+            text-align: center;
+            margin-top: 30px;
+            font-size: 18px;
+        }
+        
+        .status {
+            color: #ff6666;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="display-container">
+        <div class="display">
+            <div class="digit" id="digit1">
+                <div class="segment segment-a"></div>
+                <div class="segment segment-b"></div>
+                <div class="segment segment-c"></div>
+                <div class="segment segment-d"></div>
+                <div class="segment segment-e"></div>
+                <div class="segment segment-f"></div>
+                <div class="segment segment-g"></div>
+            </div>
+            <div class="digit" id="digit2">
+                <div class="segment segment-a"></div>
+                <div class="segment segment-b"></div>
+                <div class="segment segment-c"></div>
+                <div class="segment segment-d"></div>
+                <div class="segment segment-e"></div>
+                <div class="segment segment-f"></div>
+                <div class="segment segment-g"></div>
+            </div>
+            <div class="colon">
+                <div class="colon-dot"></div>
+                <div class="colon-dot"></div>
+            </div>
+            <div class="digit" id="digit3">
+                <div class="segment segment-a"></div>
+                <div class="segment segment-b"></div>
+                <div class="segment segment-c"></div>
+                <div class="segment segment-d"></div>
+                <div class="segment segment-e"></div>
+                <div class="segment segment-f"></div>
+                <div class="segment segment-g"></div>
+            </div>
+            <div class="digit" id="digit4">
+                <div class="segment segment-a"></div>
+                <div class="segment segment-b"></div>
+                <div class="segment segment-c"></div>
+                <div class="segment segment-d"></div>
+                <div class="segment segment-e"></div>
+                <div class="segment segment-f"></div>
+                <div class="segment segment-g"></div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="info">
+        <div>TM1637 Display Patterns</div>
+        <div class="status" id="status">Connecting to WiFi...</div>
+        <button onclick="showAttention()" style="margin-top: 15px; padding: 10px 20px; background: #ffaa00; color: black; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">Show Attention Pattern</button>
+        <button onclick="showSmiley()" style="margin-top: 5px; padding: 10px 20px; background: #00ff00; color: black; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">Show Success Smiley</button>
+        <button onclick="showFrowny()" style="margin-top: 5px; padding: 10px 20px; background: #ff0000; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">Show Error Frowny</button>
+        <button onclick="startAnimation()" style="margin-top: 5px; padding: 10px 20px; background: #666; color: white; border: none; border-radius: 5px; cursor: pointer;">Back to Animation</button>
+    </div>
+    
+    <script>
+        // Rotating dash animation - moves across all four digits
+        const dashPatterns = [
+            // Digit 1 - middle horizontal
+            [['g'], [], [], []],
+            // Digit 2 - middle horizontal
+            [[], ['g'], [], []],
+            // Digit 3 - middle horizontal
+            [[], [], ['g'], []],
+            // Digit 4 - middle horizontal
+            [[], [], [], ['g']],
+            // Back - Digit 3
+            [[], [], ['g'], []],
+            // Back - Digit 2
+            [[], ['g'], [], []],
+        ];
+        
+        // Smiley face pattern: -^^-
+        // Uses top and bottom segments to make eyes, middle for mouth
+        const smileyPattern = [
+            ['g'],           // - (dash for left side)
+            ['a', 'f', 'b'], // ^ (top segments making upward angle)
+            ['a', 'f', 'b'], // ^ (top segments making upward angle)
+            ['g']            // - (dash for right side)
+        ];
+        
+        // Frowny face pattern: -vv-
+        // Uses top and bottom segments to make eyes, middle for sad mouth
+        const frownyPattern = [
+            ['g'],           // - (dash for left side)
+            ['d', 'e', 'c'], // v (bottom segments making downward angle)
+            ['d', 'e', 'c'], // v (bottom segments making downward angle)
+            ['g']            // - (dash for right side)
+        ];
+
+        // Attention pattern: -!!-
+        // Exclamation marks to indicate user action required (WiFiManager portal)
+        const attentionPattern = [
+            ['g'],           // - (dash for left side)
+            ['b', 'c', 'd'], // ! (exclamation mark - vertical line with dot)
+            ['b', 'c', 'd'], // ! (exclamation mark - vertical line with dot)
+            ['g']            // - (dash for right side)
+        ];
+
+        let currentFrame = 0;
+        let animationInterval = null;
+        
+        function clearAllSegments() {
+            document.querySelectorAll('.segment').forEach(seg => {
+                seg.classList.remove('on');
+            });
+        }
+        
+        function displayPattern(pattern) {
+            clearAllSegments();
+            
+            pattern.forEach((digitSegments, digitIndex) => {
+                const digit = document.getElementById(`digit${digitIndex + 1}`);
+                digitSegments.forEach(seg => {
+                    const segment = digit.querySelector(`.segment-${seg}`);
+                    if (segment) segment.classList.add('on');
+                });
+            });
+        }
+        
+        function animate() {
+            displayPattern(dashPatterns[currentFrame]);
+            currentFrame = (currentFrame + 1) % dashPatterns.length;
+        }
+        
+        function showSmiley() {
+            if (animationInterval) {
+                clearInterval(animationInterval);
+                animationInterval = null;
+            }
+            displayPattern(smileyPattern);
+            document.getElementById('status').textContent = 'Connected! Time synchronized ✓';
+        }
+        
+        function showFrowny() {
+            if (animationInterval) {
+                clearInterval(animationInterval);
+                animationInterval = null;
+            }
+            displayPattern(frownyPattern);
+            document.getElementById('status').textContent = 'Error: Connection failed or lost ✗';
+        }
+
+        function showAttention() {
+            if (animationInterval) {
+                clearInterval(animationInterval);
+                animationInterval = null;
+            }
+            displayPattern(attentionPattern);
+            document.getElementById('status').textContent = 'Attention: WiFiManager portal active - connect to configure WiFi ⚠';
+        }
+
+        function startAnimation() {
+            if (animationInterval) {
+                clearInterval(animationInterval);
+            }
+            currentFrame = 0;
+            animationInterval = setInterval(animate, 150);
+            document.getElementById('status').textContent = 'Connecting to WiFi...';
+        }
+        
+        // Run animation on load
+        startAnimation();
+    </script>
+</body>
+</html>

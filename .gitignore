@@ -1,0 +1,53 @@
+# Arduino/PlatformIO build artifacts
+.pio/
+.pioenvs/
+.piolibdeps/
+build/
+*.bin
+*.elf
+*.hex
+*.map
+
+# Arduino IDE
+*.ino.cpp
+*.ino.eep
+*.ino.elf
+*.ino.hex
+*.ino.map
+*.ino.with_bootloader.bin
+*.ino.with_bootloader.hex
+.build/
+
+# VS Code
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# IDE files
+*.sublime-project
+*.sublime-workspace
+.idea/
+*.iml
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux
+*~
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+
+# Credentials and sensitive data
+secrets.h
+credentials.h
+wifi_config.h
