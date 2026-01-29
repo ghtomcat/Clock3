@@ -40,11 +40,29 @@
 #define SUCCESS_DISPLAY_DURATION 2000   // Smiley face display duration in ms (2 seconds)
 
 // ============================================
+// NTP Configuration (Phase 3)
+// ============================================
+
+// NTP Server Settings
+#define NTP_SERVER_PRIMARY "pool.ntp.org"
+#define NTP_SERVER_SECONDARY "time.nist.gov"
+
+// NTP Sync Settings
+#define NTP_SYNC_TIMEOUT 10000          // 10 seconds
+#define NTP_UPDATE_INTERVAL 3600000     // 1 hour (for Phase 6)
+
+// Timezone Settings
+#define TIMEZONE "America/New_York"     // IANA timezone string
+#define AUTO_DST true                   // Automatic DST adjustment
+
+// Initial offsets for configTime() (ezTime will override)
+#define GMT_OFFSET_SEC 0
+#define DAYLIGHT_OFFSET_SEC 0
+
+// ============================================
 // Configuration to be added in later phases:
 // ============================================
-// - Timezone configuration (TIMEZONE, AUTO_DST)
 // - Time display format (TIME_FORMAT_24H, LEADING_ZERO)
-// - NTP server configuration
 // - Reconnection settings
 // ============================================
 

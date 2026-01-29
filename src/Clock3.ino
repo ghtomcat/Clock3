@@ -20,6 +20,8 @@
 #include <TM1637.h>
 #include <WiFi.h>
 #include <WiFiManager.h>
+#include <time.h>
+#include <ezTime.h>
 
 // Project includes
 #include "config.h"
@@ -33,6 +35,12 @@ TM1637 display(CLK_PIN, DIO_PIN);
 
 // WiFiManager object (global scope required for callbacks)
 WiFiManager wm;
+
+// ezTime timezone object (Phase 3)
+Timezone myTZ;
+
+// NTP sync status flag (Phase 3)
+bool ntpSynced = false;
 
 // ============================================
 // State Machine
@@ -208,6 +216,84 @@ void displayFrowny() {
 }
 
 // ============================================
+// NTP Synchronization Functions (Phase 3)
+// ============================================
+
+/**
+ * Synchronize time with NTP servers
+ * Uses blocking sync with timeout for initial boot
+ * Returns true on success, false on timeout
+ */
+bool syncNTP() {
+  Serial.println("Syncing with NTP servers...");
+  Serial.flush();
+
+  // Configure NTP with primary and secondary servers
+  configTime(GMT_OFFSET_SEC, DAYLIGHT_OFFSET_SEC,
+             NTP_SERVER_PRIMARY, NTP_SERVER_SECONDARY);
+
+  // Wait for valid time (blocking with timeout)
+  unsigned long startMillis = millis();
+  time_t now = 0;
+
+  while (now < 24 * 3600) {  // Valid time should be > 1 day since epoch
+    time(&now);
+    if (millis() - startMillis > NTP_SYNC_TIMEOUT) {
+      Serial.println("NTP sync timeout!");
+      Serial.flush();
+      return false;
+    }
+    delay(100);
+  }
+
+  // Print synchronized time
+  struct tm timeinfo;
+  localtime_r(&now, &timeinfo);
+  Serial.print("NTP sync successful! Unix timestamp: ");
+  Serial.println(now);
+  Serial.print("UTC time: ");
+  Serial.println(&timeinfo, "%Y-%m-%d %H:%M:%S");
+  Serial.flush();
+
+  return true;
+}
+
+/**
+ * Initialize timezone using ezTime library
+ * Applies IANA timezone string and handles DST automatically
+ * Returns true on success, false on failure
+ */
+bool initTimezone() {
+  Serial.print("Initializing timezone: ");
+  Serial.println(TIMEZONE);
+  Serial.flush();
+
+  // Wait for ezTime to sync with NTP
+  waitForSync(10);  // Wait up to 10 seconds for ezTime sync
+
+  if (!timeStatus() == timeSet) {
+    Serial.println("ezTime sync failed!");
+    Serial.flush();
+    return false;
+  }
+
+  // Set timezone using ezTime
+  if (!myTZ.setLocation(TIMEZONE)) {
+    Serial.println("Timezone initialization failed!");
+    Serial.flush();
+    return false;
+  }
+
+  Serial.print("Timezone configured: ");
+  Serial.println(myTZ.getTimezoneName());
+  Serial.print("Current local time: ");
+  Serial.println(myTZ.dateTime());
+  Serial.flush();
+
+  return true;
+}
+
+// ============================================
 // Setup Function
 // ============================================
 
@@ -221,8 +307,10 @@ void setup() {
   Serial.println();
   Serial.println("========================================");
   Serial.println("ESP32 NTP Clock with TM1637 Display");
-  Serial.println("Phase 2: WiFi Connection");
+  Serial.println("Phase 3: NTP Time Synchronization");
   Serial.println("========================================");
+  Serial.print("Free heap: ");
+  Serial.println(ESP.getFreeHeap());
   Serial.println();
 
   // Initialize TM1637 Display
@@ -268,21 +356,40 @@ void setup() {
     // Successfully connected with saved credentials
     Serial.println();
     Serial.println("========================================");
-    Serial.println("WiFi Connection Successful!");
-    Serial.println("========================================");
-    Serial.print("SSID: ");
-    Serial.println(WiFi.SSID());
+    Serial.println("Connected with saved WiFi credentials!");
     Serial.print("IP Address: ");
     Serial.println(WiFi.localIP());
-    Serial.print("Signal Strength: ");
-    Serial.print(WiFi.RSSI());
-    Serial.println(" dBm");
+    Serial.println("Syncing NTP...");
     Serial.println("========================================");
     Serial.flush();
 
-    currentState = STATE_WIFI_SUCCESS;
-    successDisplayStart = millis();
-    displaySmiley();
+    // Show scanning animation while syncing
+    currentState = STATE_WIFI_CONNECTING;
+    stateEntryTime = millis();
+    lastAnimationUpdate = millis();
+    displayScanningAnimation();
+
+    // Attempt NTP sync
+    if (syncNTP()) {
+      if (initTimezone()) {
+        Serial.println("Time synchronization complete!");
+        Serial.flush();
+        ntpSynced = true;
+        currentState = STATE_WIFI_SUCCESS;
+        successDisplayStart = millis();
+        displaySmiley();
+      } else {
+        Serial.println("Timezone configuration failed!");
+        Serial.flush();
+        currentState = STATE_WIFI_FAILED;
+        displayFrowny();
+      }
+    } else {
+      Serial.println("NTP sync failed!");
+      Serial.flush();
+      currentState = STATE_WIFI_FAILED;
+      displayFrowny();
+    }
   } else {
     // No saved credentials or connection failed - portal will be active
     Serial.println("No saved credentials - portal will start");
@@ -303,6 +410,7 @@ void setup() {
 /**
  * Handle WiFi Portal state
  * Display attention pattern and wait for portal to close
+ * Phase 3: Extended to include NTP sync after successful portal connection
  */
 void handleWiFiPortal() {
   // Display attention pattern
@@ -314,21 +422,16 @@ void handleWiFiPortal() {
     if (WiFi.status() == WL_CONNECTED) {
       Serial.println();
       Serial.println("========================================");
-      Serial.println("WiFi Connection Successful!");
-      Serial.println("========================================");
-      Serial.print("SSID: ");
-      Serial.println(WiFi.SSID());
+      Serial.println("WiFi Connected! Syncing NTP...");
       Serial.print("IP Address: ");
       Serial.println(WiFi.localIP());
-      Serial.print("Signal Strength: ");
-      Serial.print(WiFi.RSSI());
-      Serial.println(" dBm");
       Serial.println("========================================");
       Serial.flush();
 
-      currentState = STATE_WIFI_SUCCESS;
-      successDisplayStart = millis();
-      displaySmiley();
+      // Transition to connecting state for NTP sync
+      currentState = STATE_WIFI_CONNECTING;
+      stateEntryTime = millis();
+      lastAnimationUpdate = millis();
     } else {
       Serial.println();
       Serial.println("========================================");
@@ -349,6 +452,7 @@ void handleWiFiPortal() {
 /**
  * Handle WiFi Connecting state
  * Display scanning animation and check connection status
+ * Phase 3: Extended to include NTP sync after WiFi connection
  */
 void handleWiFiConnecting() {
   // Update scanning animation every ANIMATION_FRAME_INTERVAL ms
@@ -359,39 +463,48 @@ void handleWiFiConnecting() {
   }
 
   // Check WiFi connection status
-  if (WiFi.status() == WL_CONNECTED) {
+  if (WiFi.status() == WL_CONNECTED && !ntpSynced) {
+    // WiFi connected, now sync NTP
     Serial.println();
     Serial.println("========================================");
-    Serial.println("WiFi Connection Successful!");
-    Serial.println("========================================");
-    Serial.print("SSID: ");
-    Serial.println(WiFi.SSID());
+    Serial.println("WiFi Connected! Syncing NTP...");
     Serial.print("IP Address: ");
     Serial.println(WiFi.localIP());
-    Serial.print("Signal Strength: ");
-    Serial.print(WiFi.RSSI());
-    Serial.println(" dBm");
     Serial.println("========================================");
     Serial.flush();
 
-    currentState = STATE_WIFI_SUCCESS;
-    successDisplayStart = millis();
-    displaySmiley();
+    // Attempt NTP sync (blocking with timeout)
+    if (syncNTP()) {
+      // Initialize timezone
+      if (initTimezone()) {
+        Serial.println("Time synchronization complete!");
+        Serial.flush();
+        ntpSynced = true;
+
+        // Transition to success state
+        currentState = STATE_WIFI_SUCCESS;
+        successDisplayStart = millis();
+        displaySmiley();
+      } else {
+        Serial.println("Timezone configuration failed!");
+        Serial.flush();
+        currentState = STATE_WIFI_FAILED;
+        displayFrowny();
+      }
+    } else {
+      Serial.println("NTP sync failed!");
+      Serial.flush();
+      currentState = STATE_WIFI_FAILED;
+      displayFrowny();
+    }
   }
-  // Check for timeout
-  else if (currentMillis - stateEntryTime >= WIFI_CONNECT_TIMEOUT) {
+  // Check for WiFi connection timeout (before NTP sync)
+  else if (!ntpSynced && currentMillis - stateEntryTime >= WIFI_CONNECT_TIMEOUT) {
     Serial.println();
     Serial.println("========================================");
-    Serial.println("WiFi Connection Timeout!");
-    Serial.println("========================================");
-    Serial.print("Status: ");
-    Serial.println(WiFi.status());
-    Serial.print("Timeout after ");
-    Serial.print(WIFI_CONNECT_TIMEOUT / 1000);
-    Serial.println(" seconds");
+    Serial.println("WiFi connection timeout!");
     Serial.println("========================================");
     Serial.flush();
-
     currentState = STATE_WIFI_FAILED;
     displayFrowny();
   }
@@ -399,8 +512,8 @@ void handleWiFiConnecting() {
 
 /**
  * Handle WiFi Success state
- * Display smiley face for 2 seconds
- * After 2 seconds, ready for Phase 3 (NTP sync)
+ * Display smiley face for 2 seconds after successful WiFi + NTP sync
+ * After 2 seconds, ready for Phase 4 (Time Display)
  */
 void handleWiFiSuccess() {
   unsigned long currentMillis = millis();
@@ -411,10 +524,10 @@ void handleWiFiSuccess() {
     displaySmiley();
   } else {
     // Success display period complete
-    // Phase 3 will add transition to NTP_SYNCING state here
+    // Phase 4 will add transition to TIME_DISPLAY state here
     // For now, stay in success state
     Serial.println();
-    Serial.println("Success display complete. Ready for Phase 3 (NTP).");
+    Serial.println("Success display complete. Ready for Phase 4 (Time Display).");
     Serial.flush();
   }
 }

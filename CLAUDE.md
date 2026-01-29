@@ -24,6 +24,26 @@ This project is designed for Arduino IDE or PlatformIO with ESP32 board support.
 - Baud Rate: 115200
 - Debug output should be enabled for connection status, NTP sync info, and errors
 
+**Serial Monitoring:**
+
+Use PlatformIO's built-in device monitor for reliable serial output:
+
+```bash
+# Monitor serial output (auto-detects port and baud rate from platformio.ini)
+pio device monitor
+
+# Upload and monitor in one command
+pio run --target upload && pio device monitor
+
+# Exit monitor: Ctrl+C
+```
+
+**Important Serial Output Notes:**
+- Add `Serial.flush()` after groups of `Serial.println()` calls to prevent character dropping on USB serial
+- The PlatformIO monitor auto-reconnects when the ESP32 resets
+- Alternative tools: `screen /dev/cu.usbserial-XXXX 115200` (exit: Ctrl+A, K, Y)
+- **Note for Claude Code**: `pio device monitor` requires an interactive TTY and cannot be run through Claude Code's non-interactive environment (returns `termios.error: (19, 'Operation not supported by device')`). Open a separate terminal window to view serial output.
+
 **Required Libraries:**
 - TM1637 display library (any well-maintained version)
 - WiFiManager library (for WiFi configuration portal)
