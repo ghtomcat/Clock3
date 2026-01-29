@@ -198,6 +198,7 @@ Clock3/
 ├── platformio.ini        # PlatformIO configuration and dependencies
 ├── tm1637-animation-demo.html  # Interactive display pattern demo
 ├── CLAUDE.md            # Development guidance for Claude Code
+├── LICENSE              # MIT License
 └── README.md            # This file
 ```
 
@@ -218,4 +219,6 @@ To contribute or continue development:
 
 ## License
 
-This project is open source. Feel free to modify and distribute.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+Feel free to use, modify, and distribute this project according to the terms of the MIT License.
