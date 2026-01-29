@@ -2,6 +2,8 @@
 
 A WiFi-enabled clock for ESP32 that displays time on a TM1637 4-digit 7-segment display. Features automatic NTP synchronization, timezone/DST support, and WiFiManager for easy configuration.
 
+> **Development Status:** Currently implementing Phase 2 (WiFi Connection). See `docs/IMPLEMENTATION_PLAN.md` for the complete phased development plan.
+
 ## Features
 
 - **NTP Time Synchronization**: Automatically syncs with internet time servers
@@ -30,22 +32,41 @@ A WiFi-enabled clock for ESP32 that displays time on a TM1637 4-digit 7-segment 
 
 ## Software Requirements
 
-### Arduino IDE or PlatformIO
+### PlatformIO
 
-Install the following libraries:
-- **TM1637** display library
-- **WiFiManager** library
-- **NTP Client** library
-- **Timezone** library
-- **ESP32** board support
+This project uses **PlatformIO** for development. All required libraries are automatically managed via `platformio.ini`:
+- **TM1637Display** by Avishay Orpaz
+- **WiFiManager** by tzapu
+- **ezTime** for timezone/DST support
+- ESP32 platform with built-in WiFi and NTP support
+
+### Installation
+
+[Install PlatformIO](https://platformio.org/install) if you haven't already (via VS Code extension or CLI).
 
 ## Installation
 
-1. Clone this repository
-2. Install required libraries via Arduino Library Manager or PlatformIO
-3. Open the project in Arduino IDE or PlatformIO
-4. Configure settings in `config.h` (see Configuration section)
-5. Upload to your ESP32
+1. Clone this repository:
+   ```bash
+   git clone <repository-url>
+   cd Clock3
+   ```
+
+2. Open in PlatformIO (VS Code or CLI)
+
+3. Configure settings in `config.h` (see Configuration section)
+
+4. Build and upload:
+   ```bash
+   pio run --target upload
+   ```
+
+5. Monitor serial output (optional but recommended):
+   ```bash
+   pio device monitor
+   # Or combined: pio run --target upload && pio device monitor
+   ```
+
 6. Connect to the WiFi configuration portal on first boot
 
 ## Configuration
@@ -149,15 +170,51 @@ If WiFi connection is lost:
 
 ## Serial Monitor
 
-Connect at **115200 baud** to see:
+Use PlatformIO's device monitor (automatically configured to **115200 baud**):
+
+```bash
+pio device monitor
+```
+
+The monitor displays:
 - WiFi connection status
 - NTP synchronization info
-- Error messages
-- Debug output
+- Error messages and debug output
+- State transitions
+
+**Tip:** The monitor auto-reconnects when ESP32 resets, and `Serial.flush()` is used throughout the code to prevent character dropping on USB serial.
+
+## Project Structure
+
+```
+Clock3/
+├── src/
+│   ├── Clock3.ino        # Main application code
+│   └── config.h          # User configuration settings
+├── docs/
+│   ├── IMPLEMENTATION_PLAN.md   # Complete phased development plan
+│   ├── PHASE2_TODO.md          # Phase 2 task list
+│   └── PHASE3_TODO.md          # Phase 3 task list
+├── platformio.ini        # PlatformIO configuration and dependencies
+├── tm1637-animation-demo.html  # Interactive display pattern demo
+├── CLAUDE.md            # Development guidance for Claude Code
+└── README.md            # This file
+```
 
 ## Demo
 
 Open `tm1637-animation-demo.html` in a browser to see interactive demonstrations of all display patterns.
+
+## Development
+
+This project is developed in phases using PlatformIO. See `docs/IMPLEMENTATION_PLAN.md` for the complete implementation strategy.
+
+**Current phase:** Phase 2 - WiFi Connection with WiFiManager
+
+To contribute or continue development:
+1. Read the implementation plan in `docs/IMPLEMENTATION_PLAN.md`
+2. Check phase-specific TODO files in `docs/` directory
+3. Follow the guidance in `CLAUDE.md` for code architecture
 
 ## License
 
