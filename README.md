@@ -35,9 +35,9 @@ A WiFi-enabled clock for ESP32 that displays time on a TM1637 4-digit 7-segment 
 ### PlatformIO
 
 This project uses **PlatformIO** for development. All required libraries are automatically managed via `platformio.ini`:
-- **TM1637Display** by Avishay Orpaz
+- **TM1637 Driver** by akj7
 - **WiFiManager** by tzapu
-- **ezTime** for timezone/DST support
+- **ezTime** for timezone/DST support (to be added in Phase 3)
 - ESP32 platform with built-in WiFi and NTP support
 
 ### Installation
