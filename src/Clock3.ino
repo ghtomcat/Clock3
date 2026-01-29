@@ -429,7 +429,17 @@ void setup() {
     currentState = STATE_WIFI_CONNECTING;
     stateEntryTime = millis();
     lastAnimationUpdate = millis();
-    displayScanningAnimation();
+
+    // Show scanning animation for at least one full cycle (6 frames * 150ms = 900ms)
+    // This ensures users see the animation even with instant WiFi connection
+    unsigned long animationStart = millis();
+    while (millis() - animationStart < 1000) {
+      if (millis() - lastAnimationUpdate >= ANIMATION_FRAME_INTERVAL) {
+        lastAnimationUpdate = millis();
+        displayScanningAnimation();
+      }
+      delay(10);  // Small delay to prevent tight loop
+    }
 
     // Attempt NTP sync
     if (syncNTP()) {
