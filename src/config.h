@@ -52,17 +52,20 @@
 #define NTP_UPDATE_INTERVAL 3600000     // 1 hour (for Phase 6)
 
 // Timezone Settings
-#define TIMEZONE "America/New_York"     // IANA timezone string
+#define TIMEZONE "Europe/Zurich"        // IANA timezone string
 #define AUTO_DST true                   // Automatic DST adjustment
 
-// Initial offsets for configTime() (ezTime will override)
-#define GMT_OFFSET_SEC 0
-#define DAYLIGHT_OFFSET_SEC 0
+// ============================================
+// Time Display Configuration (Phase 4)
+// ============================================
+
+// Time Format Settings
+#define TIME_FORMAT_24H true            // false = 12-hour format, true = 24-hour format
+#define LEADING_ZERO false              // Show leading zero on hours (e.g., 09:30 vs 9:30)
 
 // ============================================
 // Configuration to be added in later phases:
 // ============================================
-// - Time display format (TIME_FORMAT_24H, LEADING_ZERO)
 // - Reconnection settings
 // ============================================
 

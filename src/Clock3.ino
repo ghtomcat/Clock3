@@ -51,7 +51,8 @@ enum ClockState {
   STATE_WIFI_PORTAL,      // WiFiManager portal active (show -!!-)
   STATE_WIFI_CONNECTING,  // Connecting to WiFi (show scanning animation)
   STATE_WIFI_SUCCESS,     // Connected successfully (show -^^- for 2s)
-  STATE_WIFI_FAILED       // Connection failed (show -vv-)
+  STATE_WIFI_FAILED,      // Connection failed (show -vv-)
+  STATE_TIME_DISPLAY      // Normal operation - display time (Phase 4)
 };
 
 ClockState currentState = STATE_WIFI_PORTAL;
@@ -121,6 +122,7 @@ const char* getStateName(ClockState state) {
     case STATE_WIFI_CONNECTING: return "WIFI_CONNECTING";
     case STATE_WIFI_SUCCESS: return "WIFI_SUCCESS";
     case STATE_WIFI_FAILED: return "WIFI_FAILED";
+    case STATE_TIME_DISPLAY: return "TIME_DISPLAY";
     default: return "UNKNOWN";
   }
 }
@@ -220,39 +222,28 @@ void displayFrowny() {
 // ============================================
 
 /**
- * Synchronize time with NTP servers
- * Uses blocking sync with timeout for initial boot
+ * Synchronize time with NTP servers using ezTime
+ * ezTime handles both NTP sync and timezone application
  * Returns true on success, false on timeout
  */
 bool syncNTP() {
-  Serial.println("Syncing with NTP servers...");
+  Serial.println("Syncing with NTP servers using ezTime...");
   Serial.flush();
 
-  // Configure NTP with primary and secondary servers
-  configTime(GMT_OFFSET_SEC, DAYLIGHT_OFFSET_SEC,
-             NTP_SERVER_PRIMARY, NTP_SERVER_SECONDARY);
+  // Set NTP servers for ezTime
+  setServer(NTP_SERVER_PRIMARY);
 
-  // Wait for valid time (blocking with timeout)
-  unsigned long startMillis = millis();
-  time_t now = 0;
-
-  while (now < 24 * 3600) {  // Valid time should be > 1 day since epoch
-    time(&now);
-    if (millis() - startMillis > NTP_SYNC_TIMEOUT) {
-      Serial.println("NTP sync timeout!");
-      Serial.flush();
-      return false;
-    }
-    delay(100);
+  // Wait for ezTime to sync with NTP
+  Serial.println("Waiting for NTP sync...");
+  if (!waitForSync(15)) {  // Wait up to 15 seconds for sync
+    Serial.println("NTP sync timeout!");
+    Serial.flush();
+    return false;
   }
 
-  // Print synchronized time
-  struct tm timeinfo;
-  localtime_r(&now, &timeinfo);
-  Serial.print("NTP sync successful! Unix timestamp: ");
-  Serial.println(now);
+  Serial.println("NTP sync successful!");
   Serial.print("UTC time: ");
-  Serial.println(&timeinfo, "%Y-%m-%d %H:%M:%S");
+  Serial.println(UTC.dateTime());
   Serial.flush();
 
   return true;
@@ -268,29 +259,100 @@ bool initTimezone() {
   Serial.println(TIMEZONE);
   Serial.flush();
 
-  // Wait for ezTime to sync with NTP
-  waitForSync(10);  // Wait up to 10 seconds for ezTime sync
-
-  if (!timeStatus() == timeSet) {
-    Serial.println("ezTime sync failed!");
-    Serial.flush();
-    return false;
-  }
-
-  // Set timezone using ezTime
+  // Set timezone using ezTime (NTP already synced in syncNTP)
   if (!myTZ.setLocation(TIMEZONE)) {
     Serial.println("Timezone initialization failed!");
     Serial.flush();
     return false;
   }
 
+  // Wait a moment for timezone data to load
+  delay(500);
+
   Serial.print("Timezone configured: ");
   Serial.println(myTZ.getTimezoneName());
+  Serial.print("UTC offset: ");
+  Serial.print(myTZ.getOffset());
+  Serial.println(" minutes");
   Serial.print("Current local time: ");
   Serial.println(myTZ.dateTime());
   Serial.flush();
 
   return true;
+}
+
+// ============================================
+// Time Display Functions (Phase 4)
+// ============================================
+
+// Segment encoding for digits 0-9
+// Bit mapping: A=0x01, B=0x02, C=0x04, D=0x08, E=0x10, F=0x20, G=0x40, DP=0x80
+const uint8_t digitSegments[10] = {
+  0x3F,  // 0: A+B+C+D+E+F
+  0x06,  // 1: B+C
+  0x5B,  // 2: A+B+D+E+G
+  0x4F,  // 3: A+B+C+D+G
+  0x66,  // 4: B+C+F+G
+  0x6D,  // 5: A+C+D+F+G
+  0x7D,  // 6: A+C+D+E+F+G
+  0x07,  // 7: A+B+C
+  0x7F,  // 8: All segments
+  0x6F   // 9: A+B+C+D+F+G
+};
+
+/**
+ * Display current time on TM1637 display
+ * Handles 12/24 hour format and blinking colon
+ */
+void displayTime() {
+  // Get current local time from ezTime timezone object
+  // Note: Call without parameters to get timezone-adjusted values
+  int hour = myTZ.hour();
+  int minute = myTZ.minute();
+  int second = myTZ.second();
+
+  // Convert to 12-hour format if needed
+  bool isPM = false;
+  if (!TIME_FORMAT_24H) {
+    isPM = (hour >= 12);
+    if (hour == 0) {
+      hour = 12;  // Midnight is 12 AM
+    } else if (hour > 12) {
+      hour -= 12;  // Convert to 12-hour format
+    }
+  }
+
+  // Format digits
+  int digit1 = hour / 10;
+  int digit2 = hour % 10;
+  int digit3 = minute / 10;
+  int digit4 = minute % 10;
+
+  // Determine colon state (blink at 1 Hz - ON during even seconds)
+  bool colonOn = (second % 2 == 0);
+
+  // Build segment array
+  uint8_t segments[4];
+
+  // Digit 1 (hours tens) - blank if 0 and LEADING_ZERO is false
+  if (!LEADING_ZERO && digit1 == 0) {
+    segments[0] = 0x00;  // Blank
+  } else {
+    segments[0] = digitSegments[digit1];
+  }
+
+  // Digit 2 (hours ones) - add colon bit if blinking on
+  segments[1] = digitSegments[digit2];
+  if (colonOn) {
+    segments[1] |= 0x80;  // Add colon bit
+  }
+
+  // Digits 3 and 4 (minutes)
+  segments[2] = digitSegments[digit3];
+  segments[3] = digitSegments[digit4];
+
+  // Display using raw bytes (same method as patterns)
+  display.displayRawBytes(segments, 4);
 }
 
 // ============================================
@@ -307,7 +369,7 @@ void setup() {
   Serial.println();
   Serial.println("========================================");
   Serial.println("ESP32 NTP Clock with TM1637 Display");
-  Serial.println("Phase 3: NTP Time Synchronization");
+  Serial.println("Phase 4: Time Display Implementation");
   Serial.println("========================================");
   Serial.print("Free heap: ");
   Serial.println(ESP.getFreeHeap());
@@ -513,7 +575,7 @@ void handleWiFiConnecting() {
 /**
  * Handle WiFi Success state
  * Display smiley face for 2 seconds after successful WiFi + NTP sync
- * After 2 seconds, ready for Phase 4 (Time Display)
+ * After 2 seconds, transition to time display (Phase 4)
  */
 void handleWiFiSuccess() {
   unsigned long currentMillis = millis();
@@ -523,12 +585,12 @@ void handleWiFiSuccess() {
     // Still showing smiley
     displaySmiley();
   } else {
-    // Success display period complete
-    // Phase 4 will add transition to TIME_DISPLAY state here
-    // For now, stay in success state
+    // Success display period complete - transition to time display
     Serial.println();
-    Serial.println("Success display complete. Ready for Phase 4 (Time Display).");
+    Serial.println("Transitioning to time display mode...");
     Serial.flush();
+
+    currentState = STATE_TIME_DISPLAY;
   }
 }
 
@@ -542,6 +604,23 @@ void handleWiFiFailed() {
   // Phase 5 will implement reconnection logic here
 }
 
+/**
+ * Handle Time Display state (Phase 4)
+ * Display current time with blinking colon
+ * Updates every second
+ */
+void handleTimeDisplay() {
+  static unsigned long lastUpdate = 0;
+  unsigned long currentMillis = millis();
+
+  // Update display every 500ms to ensure colon blink is smooth
+  // (every 500ms catches second transitions more reliably)
+  if (currentMillis - lastUpdate >= 500) {
+    lastUpdate = currentMillis;
+    displayTime();
+  }
+}
+
 // ============================================
 // Loop Function
 // ============================================
@@ -549,6 +628,9 @@ void handleWiFiFailed() {
 void loop() {
   // CRITICAL: Must call wm.process() every loop iteration for non-blocking operation
   wm.process();
+
+  // Update ezTime for timezone synchronization (Phase 3+)
+  events();
 
   // Execute state-specific handler
   switch (currentState) {
@@ -566,6 +648,10 @@ void loop() {
 
     case STATE_WIFI_FAILED:
       handleWiFiFailed();
+      break;
+
+    case STATE_TIME_DISPLAY:
+      handleTimeDisplay();
       break;
   }
 
